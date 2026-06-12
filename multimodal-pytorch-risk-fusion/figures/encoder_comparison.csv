@@ -1,0 +1,4 @@
+encoder,mode,A_macro_f1,A_weighted_f1,A_accuracy,B_auroc,B_macro_f1,minutes
+—,tabular,0.4377,0.3514,0.3618,0.7924,0.7216,0.4
+neobert,text,0.007,0.0058,0.0553,,0.3966,16.7
+neobert,fusion,0.007,0.0058,0.0553,,0.3966,16.2

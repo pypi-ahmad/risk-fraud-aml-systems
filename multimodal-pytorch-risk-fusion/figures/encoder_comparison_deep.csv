@@ -1,0 +1,10 @@
+encoder,mode,A_macro_f1,A_weighted_f1,A_accuracy,B_auroc,B_macro_f1,minutes
+—,tabular,0.4259,0.357,0.3879,0.8006,0.736,0.5
+distilbert,text,0.5798,0.6224,0.6185,0.6998,0.6215,9.9
+distilbert,fusion,0.6228,0.6621,0.6589,0.8073,0.7479,9.9
+modernbert,text,0.6037,0.6639,0.6621,0.7023,0.643,26.1
+modernbert,fusion,0.6107,0.6822,0.6823,0.8092,0.7466,26.0
+neobert,text,0.007,0.0058,0.0553,,0.3966,18.0
+neobert,fusion,,,,,,0.0
+mrbert,text,0.2708,0.3746,0.381,0.625,0.5685,35.8
+mrbert,fusion,0.4963,0.5075,0.5213,0.7948,0.7292,26.1

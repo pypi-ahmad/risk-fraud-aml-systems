@@ -1,0 +1,28 @@
+[project]
+name = "pytorch-fraud-mlp"
+version = "0.1.0"
+description = "PyTorch MLP classifier for fraud detection on imbalanced tabular data"
+readme = "README.md"
+requires-python = ">=3.12.10"
+dependencies = [
+    "torch>=2.6.0",
+    "numpy>=2.2.0",
+    "pandas>=2.2.0",
+    "scikit-learn>=1.6.0",
+    "matplotlib>=3.10.0",
+    "seaborn>=0.13.2",
+    "jupyter>=1.1.0",
+    "ipykernel>=6.29.0",
+    "nbformat>=5.10.0",
+    "tqdm>=4.67.0",
+    "kaggle>=1.7.0",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+

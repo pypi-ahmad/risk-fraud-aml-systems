@@ -1,0 +1,46 @@
+# Python byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv
+venv/
+env/
+virtualenv/
+
+# Environment variables
+.env
+.env.*
+
+# Distribution / packaging
+build/
+dist/
+wheels/
+*.egg-info
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Test / coverage
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Logs
+*.log
+
+# Data, models, and generated reports (large / reproducible)
+data/raw/*.csv
+models/*.joblib
+reports/*.csv

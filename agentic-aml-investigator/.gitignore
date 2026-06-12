@@ -1,0 +1,15 @@
+# env
+.venv/
+__pycache__/
+*.pyc
+.env
+
+# generated data (rebuild with notebook 01 / build_warehouse)
+data/aml.duckdb
+data/aml.duckdb.wal
+
+# session-local artifacts
+artifacts/checkpoints/
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
