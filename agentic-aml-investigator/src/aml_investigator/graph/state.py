@@ -19,6 +19,7 @@ class InvestigationState(TypedDict, total=False):
     investigator_summary: str
     checks_completed: list[str]
     coverage_ran: list[str]  # checks the deterministic net had to run itself
+    coverage_failed: list[dict]  # [{check, error}, ...] checks that failed in coverage net
 
     risk: dict  # RiskAssessment dump
     reflection_rounds: int

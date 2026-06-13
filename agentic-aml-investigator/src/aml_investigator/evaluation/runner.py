@@ -35,13 +35,15 @@ def run_eval(model: str, cases: list[dict[str, Any]], run_name: str) -> pd.DataF
     if jsonl_path.exists():
         for line in jsonl_path.read_text().splitlines():
             row = json.loads(line)
-            done[row["account_id"]] = row
+            if row.get("status", "ok") == "ok":
+                done[row["account_id"]] = row
         if done:
             logger.info(f"{run_name}: resuming, {len(done)} case(s) already done")
 
     con = db.connect()
     graph = build_graph(con, checkpointer=MemorySaver(), model=model)
     rows: list[dict[str, Any]] = []
+    failed_cases = 0
 
     with jsonl_path.open("a") as sink:
         for i, case in enumerate(cases, start=1):
@@ -51,6 +53,17 @@ def run_eval(model: str, cases: list[dict[str, Any]], run_name: str) -> pd.DataF
             case_id = f"{run_name}-{case['account_id']}"
             t0 = time.perf_counter()
             state = None
+            last_error = ""
+            tel_summary = {
+                "llm_calls": 0,
+                "llm_seconds": 0.0,
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "tool_calls": 0,
+                "tool_errors": 0,
+                "structured_retries": 0,
+                "structured_fallbacks": 0,
+            }
             for attempt in (1, 2):  # one retry: a multi-hour run must survive transient faults
                 con.execute("DELETE FROM evidence WHERE case_id = ?", [case_id])
                 con.execute("DELETE FROM case_log WHERE case_id = ?", [case_id])
@@ -63,10 +76,38 @@ def run_eval(model: str, cases: list[dict[str, Any]], run_name: str) -> pd.DataF
                             config,
                         )
                         state = graph.invoke(Command(resume={"decision": "approve"}), config)
+                        tel_summary = {k: v for k, v in tel.summary().items() if k != "case_id"}
                     break
                 except Exception as e:
+                    last_error = f"{type(e).__name__}: {e}"
                     logger.error(f"{case_id} attempt {attempt} failed: {type(e).__name__}: {e}")
-            if state is None:  # both attempts failed; skip — a re-run resumes this case
+            if state is None:
+                wall = time.perf_counter() - t0
+                failed_cases += 1
+                row = {
+                    "run": run_name,
+                    "model": model,
+                    "status": "failed",
+                    "error": last_error,
+                    "account_id": case["account_id"],
+                    "label": case["label"],
+                    "typology_true": case["typology"],
+                    "disposition": "ERROR",
+                    "risk_score": None,
+                    "typology_pred": "unclear",
+                    "sanctions_hits_found": 0,
+                    "coverage_net_checks": 0,
+                    "coverage_net_failures": 0,
+                    "used_fallback_report": False,
+                    "report_retries": 0,
+                    "money_claims": 0,
+                    "grounded_claims": 0,
+                    "wall_seconds": round(wall, 1),
+                    **tel_summary,
+                }
+                sink.write(json.dumps(row) + "\n")
+                sink.flush()
+                rows.append(row)
                 continue
             wall = time.perf_counter() - t0
 
@@ -78,6 +119,8 @@ def run_eval(model: str, cases: list[dict[str, Any]], run_name: str) -> pd.DataF
             row = {
                 "run": run_name,
                 "model": model,
+                "status": "ok",
+                "error": None,
                 "account_id": case["account_id"],
                 "label": case["label"],
                 "typology_true": case["typology"],
@@ -86,12 +129,13 @@ def run_eval(model: str, cases: list[dict[str, Any]], run_name: str) -> pd.DataF
                 "typology_pred": state["risk"]["typology"],
                 "sanctions_hits_found": sanctions_hits,
                 "coverage_net_checks": len(state.get("coverage_ran", [])),
+                "coverage_net_failures": len(state.get("coverage_failed", [])),
                 "used_fallback_report": bool(state.get("used_fallback_report", False)),
                 "report_retries": state.get("report_retries", 0),
                 "money_claims": grounded["money_claims"],
                 "grounded_claims": grounded["grounded_claims"],
                 "wall_seconds": round(wall, 1),
-                **{k: v for k, v in tel.summary().items() if k != "case_id"},
+                **tel_summary,
             }
             sink.write(json.dumps(row) + "\n")
             sink.flush()
@@ -103,6 +147,8 @@ def run_eval(model: str, cases: list[dict[str, Any]], run_name: str) -> pd.DataF
             )
 
     con.close()
+    if failed_cases:
+        logger.error(f"{run_name}: {failed_cases} case(s) failed after retries (status=failed in JSONL/CSV)")
     df = pd.DataFrame(rows)
     df.to_csv(out_dir / f"{run_name}_results.csv", index=False)
     return df

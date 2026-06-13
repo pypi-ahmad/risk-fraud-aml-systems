@@ -25,6 +25,15 @@ def report_groundedness(report_md: str, evidence: list[dict], risk: dict) -> dic
 
 def decision_metrics(df: pd.DataFrame) -> dict[str, Any]:
     """ESCALATE-vs-label confusion and the derived rates."""
+    if "status" in df.columns:
+        df = df[df.status == "ok"]
+    if df.empty:
+        return {
+            "tp": 0, "fp": 0, "fn": 0, "tn": 0,
+            "accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1": 0.0,
+            "typology_top1_on_escalated": 0.0, "sanctions_recall": float("nan"),
+            "mean_score_suspicious": 0.0, "mean_score_clean": 0.0,
+        }
     tp = len(df[(df.label == "suspicious") & (df.disposition == "ESCALATE")])
     fn = len(df[(df.label == "suspicious") & (df.disposition == "DISMISS")])
     fp = len(df[(df.label == "clean") & (df.disposition == "ESCALATE")])
@@ -59,6 +68,23 @@ def decision_metrics(df: pd.DataFrame) -> dict[str, Any]:
 
 def process_metrics(df: pd.DataFrame) -> dict[str, Any]:
     """How reliably the machinery ran (the honest-flakiness numbers)."""
+    if "status" in df.columns:
+        df = df[df.status == "ok"]
+    if df.empty:
+        return {
+            "cases": 0,
+            "wall_p50_s": 0.0,
+            "wall_p95_s": 0.0,
+            "llm_calls_per_case": 0.0,
+            "tokens_per_case": 0,
+            "tool_error_rate": 0.0,
+            "structured_retry_rate": 0.0,
+            "structured_fallback_rate": 0.0,
+            "coverage_net_activation_rate": 0.0,
+            "fallback_report_rate": 0.0,
+            "report_retry_rate": 0.0,
+            "groundedness": 0.0,
+        }
     return {
         "cases": len(df),
         "wall_p50_s": round(float(df.wall_seconds.median()), 1),

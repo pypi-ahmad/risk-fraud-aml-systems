@@ -32,6 +32,12 @@ _ACTIVE_CASE = {"id": "interactive"}
 
 
 def set_active_case(case_id: str) -> None:
+    telemetry_case_id = telemetry.current().case_id
+    if telemetry_case_id != "interactive" and telemetry_case_id != case_id:
+        raise RuntimeError(
+            "Active case mismatch between telemetry scope and tool scope. "
+            "Concurrent investigations are not supported with module-level case state."
+        )
     _ACTIVE_CASE["id"] = case_id
 
 
@@ -61,6 +67,9 @@ def make_tools(con: duckdb.DuckDBPyConnection) -> dict[str, BaseTool]:
     Returns a name -> tool mapping; the graph uses the dict for deterministic
     direct execution (coverage net) and ``list(...)`` for the ReAct agent.
     """
+
+    sdn_rows_cached = con.execute("SELECT sdn_name, program, ent_num FROM sdn").fetchall()
+    sdn_names_cached = [r[0] for r in sdn_rows_cached]
 
     def timed_tool(fn):
         """Wrap a tool body with telemetry (latency + success/failure)."""
@@ -276,9 +285,9 @@ def make_tools(con: duckdb.DuckDBPyConnection) -> dict[str, BaseTool]:
         names = [r[0] for r in con.execute(
             "SELECT DISTINCT counterparty_name FROM transactions "
             "WHERE account_id = ? AND counterparty_name IS NOT NULL", [account_id]).fetchall()]
-        sdn_rows = con.execute("SELECT sdn_name, program, ent_num FROM sdn").fetchall()
-        sdn_names = [r[0] for r in sdn_rows]
         hits = []
+        sdn_rows = sdn_rows_cached
+        sdn_names = sdn_names_cached
         for name in names:
             for sdn_name, score, idx in process.extract(
                 name, sdn_names, scorer=fuzz.token_sort_ratio,

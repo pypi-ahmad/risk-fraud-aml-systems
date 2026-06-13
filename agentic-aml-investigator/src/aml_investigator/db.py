@@ -74,6 +74,13 @@ CREATE TABLE IF NOT EXISTS case_log (
     report_path       VARCHAR,
     closed_at         TIMESTAMP NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_account_ts ON transactions(account_id, ts);
+CREATE INDEX IF NOT EXISTS idx_transactions_account_type ON transactions(account_id, txn_type);
+CREATE INDEX IF NOT EXISTS idx_transactions_counterparty ON transactions(counterparty_id);
+CREATE INDEX IF NOT EXISTS idx_alerts_account ON alerts(account_id);
+CREATE INDEX IF NOT EXISTS idx_sdn_name ON sdn(sdn_name);
+CREATE INDEX IF NOT EXISTS idx_evidence_case ON evidence(case_id);
 """
 
 # Tables the investigation agents are allowed to query ad hoc.

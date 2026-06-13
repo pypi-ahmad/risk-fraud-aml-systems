@@ -6,7 +6,7 @@ Usage:
     uv run python scripts/build_notebooks.py all
 """
 
-import sys
+import argparse
 from pathlib import Path
 
 import nbformat as nbf
@@ -1022,7 +1022,16 @@ BUILDERS = {
 
 
 def main() -> None:
-    which = sys.argv[1] if len(sys.argv) > 1 else "all"
+    parser = argparse.ArgumentParser(description="Build tutorial notebooks from source cells.")
+    parser.add_argument(
+        "which",
+        nargs="?",
+        default="all",
+        choices=["all", *BUILDERS.keys()],
+        help="Notebook key to build (01/02/03/04) or all (default).",
+    )
+    args = parser.parse_args()
+    which = args.which
     keys = BUILDERS.keys() if which == "all" else [which]
     NB_DIR.mkdir(exist_ok=True)
     for key in keys:

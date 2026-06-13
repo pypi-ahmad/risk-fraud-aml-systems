@@ -20,6 +20,17 @@ class SQLGuardError(ValueError):
 _BANNED_SUBSTRINGS = ("attach", "install", "copy ", "read_", "glob", "getenv", "pragma")
 
 
+def _literal_limit(stmt: exp.Expression) -> int | None:
+    """Return LIMIT value when present as a literal integer, else ``None``."""
+    limit = stmt.args.get("limit")
+    if not isinstance(limit, exp.Limit):
+        return None
+    value = limit.expression
+    if isinstance(value, exp.Literal) and value.is_int:
+        return int(value.this)
+    return None
+
+
 def guard_sql(query: str) -> str:
     """Validate an agent-written query and return it with a row limit applied.
 
@@ -53,6 +64,14 @@ def guard_sql(query: str) -> str:
                 f"Available tables: {', '.join(sorted(AGENT_VISIBLE_TABLES))}."
             )
 
-    if stmt.args.get("limit") is None:
+    limit = stmt.args.get("limit")
+    if limit is None:
+        return f"SELECT * FROM ({stmt.sql(dialect='duckdb')}) LIMIT {settings.sql_row_limit}"
+    literal_limit = _literal_limit(stmt)
+    if literal_limit is None:
+        raise SQLGuardError("Query rejected: LIMIT must be a literal integer.")
+    if literal_limit <= 0:
+        raise SQLGuardError("Query rejected: LIMIT must be >= 1.")
+    if literal_limit > settings.sql_row_limit:
         return f"SELECT * FROM ({stmt.sql(dialect='duckdb')}) LIMIT {settings.sql_row_limit}"
     return stmt.sql(dialect="duckdb")

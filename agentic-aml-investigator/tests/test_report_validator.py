@@ -62,6 +62,39 @@ def test_rounding_tolerance_passes():
     assert result["valid"]
 
 
+def test_date_or_id_numbers_do_not_ground_money_claims():
+    evidence = [
+        {
+            "evidence_id": "EV-01",
+            "tool": "profile_account",
+            "summary": "ACC-0001 opened 2026-05-31; no cash anomalies.",
+            "payload": {"account_id": "ACC-0001", "opened_date": "2026-05-31"},
+        }
+    ]
+    risk = {
+        "risk_score": 18,
+        "typology": "none",
+        "recommendation": "DISMISS",
+        "factors": [{"claim": "No suspicious findings", "evidence_id": "EV-01"}],
+    }
+    report = """\
+## Case Summary
+Routine review only.
+
+## Evidence
+Observed flow of $2,026 [EV-01].
+
+## Risk Assessment
+Low risk.
+
+## Recommendation
+Close. DISPOSITION: DISMISS
+"""
+    result = validate_report(report, evidence, risk)
+    assert not result["valid"]
+    assert any("$2,026" in e for e in result["errors"])
+
+
 def test_wrong_disposition_fails():
     result = validate_report(GOOD.replace("ESCALATE", "DISMISS"), EVIDENCE, RISK)
     assert any("DISPOSITION" in e for e in result["errors"])

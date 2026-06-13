@@ -15,6 +15,11 @@ def test_existing_limit_is_kept():
     assert "LIMIT 5" in out and str(settings.sql_row_limit) not in out
 
 
+def test_large_limit_is_capped():
+    out = guard_sql("SELECT account_id FROM transactions LIMIT 1000000")
+    assert out.strip().endswith(f"LIMIT {settings.sql_row_limit}")
+
+
 def test_cte_over_visible_tables_passes():
     out = guard_sql(
         "WITH t AS (SELECT account_id, amount FROM transactions) "
@@ -36,6 +41,7 @@ def test_cte_over_visible_tables_passes():
         "SELECT * FROM case_log",
         "SELECT * FROM read_csv('x.csv')",
         "ATTACH 'other.db'",
+        "SELECT account_id FROM transactions LIMIT 1.5",
     ],
 )
 def test_rejected(query):

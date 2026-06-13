@@ -7,7 +7,7 @@ outside the enum.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 CheckName = Literal[
     "profile_account",
@@ -83,3 +83,19 @@ class JudgeScore(BaseModel):
     completeness: int = Field(ge=1, le=5, description="All material evidence is reflected")
     clarity: int = Field(ge=1, le=5, description="A compliance officer could act on it")
     justification: str = Field(description="2-3 sentences explaining the scores")
+
+
+class HumanDecision(BaseModel):
+    """Human-gate decision schema for interrupt/resume."""
+
+    decision: Literal["approve", "override"] = "approve"
+    disposition: Literal["ESCALATE", "DISMISS"] | None = None
+    note: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_override(self) -> "HumanDecision":
+        if self.decision == "override" and self.disposition is None:
+            raise ValueError("override decisions must include disposition ESCALATE or DISMISS")
+        if self.decision == "approve" and self.disposition is not None:
+            raise ValueError("approve decisions must not include an override disposition")
+        return self

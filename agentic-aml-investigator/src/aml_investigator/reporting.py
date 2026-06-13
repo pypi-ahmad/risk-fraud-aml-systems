@@ -16,28 +16,32 @@ REQUIRED_SECTIONS = ("## Case Summary", "## Evidence", "## Risk Assessment", "##
 
 _MONEY_RE = re.compile(r"\$\s?([\d,]+(?:\.\d+)?)")
 _EVID_RE = re.compile(r"\[(EV-\d{2})\]")
-_NUM_RE = re.compile(r"(?<![\w.])(\d[\d,]*(?:\.\d+)?)(?![\w%])")
+_MONEY_KEYWORDS = ("amount", "total", "balance", "volume", "sum", "paid", "received", "transferred")
 
 
-def _numbers_in(obj: Any) -> set[float]:
-    """Recursively pull every numeric value out of evidence payloads/summaries."""
+def _numbers_in(obj: Any, *, key_hint: str | None = None) -> set[float]:
+    """Recursively pull monetary values from evidence payloads/summaries.
+
+    Important: groundedness is about *dollar* claims in reports. We therefore
+    ignore generic numbers in free text (IDs, dates, counts) and only extract:
+    - values explicitly written as ``$...`` in strings
+    - numeric fields whose key names look monetary (amount/total/etc.)
+    """
     found: set[float] = set()
     if isinstance(obj, bool):
         return found
     if isinstance(obj, (int, float)):
-        found.add(round(float(obj), 2))
+        if key_hint and any(k in key_hint.lower() for k in _MONEY_KEYWORDS):
+            found.add(round(float(obj), 2))
     elif isinstance(obj, str):
-        for m in _NUM_RE.finditer(obj):
-            try:
-                found.add(round(float(m.group(1).replace(",", "")), 2))
-            except ValueError:
-                pass
+        for m in _MONEY_RE.finditer(obj):
+            found.add(round(float(m.group(1).replace(",", "")), 2))
     elif isinstance(obj, dict):
-        for v in obj.values():
-            found |= _numbers_in(v)
+        for k, v in obj.items():
+            found |= _numbers_in(v, key_hint=k)
     elif isinstance(obj, (list, tuple)):
         for v in obj:
-            found |= _numbers_in(v)
+            found |= _numbers_in(v, key_hint=key_hint)
     return found
 
 

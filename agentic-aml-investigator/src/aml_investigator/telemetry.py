@@ -66,6 +66,11 @@ def case_scope(case_id: str):
     """Collect telemetry for one case; yields the collector."""
     t = Telemetry(case_id=case_id)
     previous = _state["current"]
+    if previous is not None and previous.case_id != case_id:
+        raise RuntimeError(
+            "Concurrent case scopes are not supported with module-level telemetry state. "
+            "Run investigations sequentially."
+        )
     _state["current"] = t
     try:
         yield t

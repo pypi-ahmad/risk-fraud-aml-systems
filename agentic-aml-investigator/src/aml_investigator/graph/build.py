@@ -17,6 +17,7 @@ the report validator + template fallback guarantee a well-formed final report.
 
 import time
 from datetime import datetime
+import re
 
 import duckdb
 from langchain.agents import create_agent
@@ -25,6 +26,7 @@ from langgraph.errors import GraphRecursionError
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 from loguru import logger
+from pydantic import ValidationError
 
 from aml_investigator import telemetry
 from aml_investigator.db import fetch_evidence
@@ -34,6 +36,7 @@ from aml_investigator.prompts import INVESTIGATOR_SYSTEM, REPORT_SYSTEM, RISK_SY
 from aml_investigator.reporting import render_fallback, validate_report
 from aml_investigator.schemas import (
     ALL_CHECKS,
+    HumanDecision,
     MANDATORY_CHECKS,
     RiskAssessment,
     RiskFactor,
@@ -45,6 +48,32 @@ from aml_investigator.tools.forensics import make_tools, set_active_case
 
 def _alerts_text(state: InvestigationState) -> str:
     return "; ".join(f"{a['rule']}: {a['details']}" for a in state["alerts"]) or "manual referral"
+
+
+def _tool_call_succeeded(output: object) -> bool:
+    """True when a tool invocation produced evidence rather than an error string."""
+    return not (isinstance(output, str) and output.strip().startswith("ERROR:"))
+
+
+def _safe_case_filename(case_id: str) -> str:
+    """Sanitize a case id into a safe filename stem."""
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", case_id).strip("._")
+    return safe or "case"
+
+
+def _normalize_human_decision(raw: object) -> HumanDecision:
+    """Validate/normalize interrupt payload into a strict decision schema."""
+    if isinstance(raw, str):
+        candidate = {"decision": raw.strip().lower()}
+    elif isinstance(raw, dict):
+        candidate = raw
+    else:
+        candidate = {"decision": "approve"}
+    try:
+        return HumanDecision.model_validate(candidate)
+    except ValidationError as exc:
+        logger.warning(f"invalid human decision payload ({exc}); defaulting to approve")
+        return HumanDecision(decision="approve")
 
 
 def build_graph(
@@ -73,6 +102,17 @@ def build_graph(
             "SELECT holder_name, country, account_type, opened_date FROM accounts WHERE account_id = ?",
             [state["account_id"]],
         ).fetchone()
+        if acc is None:
+            logger.warning(f"triage received unknown account_id={state['account_id']}; using fallback triage")
+            return {
+                "triage": TriageDecision(
+                    priority="high",
+                    checks=list(MANDATORY_CHECKS),
+                    rationale="Account was not found; defaulting to mandatory checks for safety.",
+                ).model_dump(),
+                "reflection_rounds": 0,
+                "report_retries": 0,
+            }
         user = (
             f"Account {state['account_id']}: '{acc[0]}', {acc[2]} account, country {acc[1]}, "
             f"opened {acc[3]}.\nAlert(s): {_alerts_text(state)}"
@@ -132,10 +172,21 @@ def build_graph(
             requested = set(ALL_CHECKS)
         done = set(state.get("checks_completed", []))
         missing = sorted(requested - done)
+        ran: list[str] = []
+        failed: list[dict[str, str]] = []
         for name in missing:
             logger.info(f"coverage net running skipped check: {name}")
-            tools[name].invoke({"account_id": state["account_id"]})
-        return {"coverage_ran": missing, "checks_completed": sorted(done | set(missing))}
+            output = tools[name].invoke({"account_id": state["account_id"]})
+            if _tool_call_succeeded(output):
+                ran.append(name)
+            else:
+                failed.append({"check": name, "error": str(output)[:300]})
+                logger.error(f"coverage net check failed for {name}: {str(output)[:180]}")
+        return {
+            "coverage_ran": ran,
+            "coverage_failed": failed,
+            "checks_completed": sorted(done | set(ran)),
+        }
 
     def assess_risk(state: InvestigationState) -> dict:
         set_active_case(state["case_id"])
@@ -185,11 +236,16 @@ def build_graph(
         """Run the one extra check the analyst asked for (bounded reflection)."""
         set_active_case(state["case_id"])
         check = state["risk"].get("requested_check")
+        completed = set(state.get("checks_completed", []))
         if check and check not in set(state.get("checks_completed", [])):
-            tools[check].invoke({"account_id": state["account_id"]})
+            output = tools[check].invoke({"account_id": state["account_id"]})
+            if _tool_call_succeeded(output):
+                completed.add(check)
+            else:
+                logger.error(f"gather_more failed for {check}: {str(output)[:180]}")
         return {
             "reflection_rounds": state.get("reflection_rounds", 0) + 1,
-            "checks_completed": sorted(set(state.get("checks_completed", [])) | ({check} if check else set())),
+            "checks_completed": sorted(completed),
         }
 
     def write_report(state: InvestigationState) -> dict:
@@ -245,9 +301,8 @@ def build_graph(
                             "{'decision': 'override', 'disposition': 'ESCALATE'|'DISMISS', 'note': ...}",
             }
         )
-        if not isinstance(decision, dict):
-            decision = {"decision": str(decision)}
-        return {"human_decision": decision}
+        normalized = _normalize_human_decision(decision)
+        return {"human_decision": normalized.model_dump(exclude_none=True)}
 
     def finalize(state: InvestigationState) -> dict:
         decision = state["human_decision"]
@@ -257,7 +312,10 @@ def build_graph(
             disposition = state["risk"]["recommendation"]
         report_dir = settings.artifacts_dir / "reports"
         report_dir.mkdir(parents=True, exist_ok=True)
-        report_path = report_dir / f"{state['case_id']}.md"
+        filename = f"{_safe_case_filename(state['case_id'])}.md"
+        report_path = (report_dir / filename).resolve()
+        if report_dir.resolve() not in report_path.parents:
+            raise ValueError("resolved report path escapes artifacts/report directory")
         report_path.write_text(state["report_md"])
         con.execute(
             "INSERT INTO case_log VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
