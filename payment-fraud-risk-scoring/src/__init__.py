@@ -6,8 +6,9 @@ data    : dataset download (Kaggle), loading, and reproducible train/val/test sp
 scoring : evaluation metrics tuned for imbalanced fraud detection, threshold
           selection, top-K review analysis, and a lightweight FraudScorer for
           inference / batch scoring.
+training: reusable training pipeline to fit, select, and persist FraudScorer.
 """
 
-from . import data, scoring
+from . import data, scoring, training
 
-__all__ = ["data", "scoring"]
+__all__ = ["data", "scoring", "training"]

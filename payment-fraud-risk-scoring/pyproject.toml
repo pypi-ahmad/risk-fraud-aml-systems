@@ -1,9 +1,17 @@
 [project]
 name = "payment-fraud-risk-scoring"
-version = "0.1.0"
+version = "0.3.0"
 description = "Fraud risk scoring on imbalanced card-transaction data (PR-AUC, threshold tuning, XGBoost/LightGBM)."
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12.10"
+keywords = ["fraud", "risk-scoring", "machine-learning", "xgboost", "fastapi"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "fastapi>=0.136.3",
     "imbalanced-learn>=0.14.2",
@@ -11,7 +19,7 @@ dependencies = [
     "joblib>=1.5.3",
     "jupyter>=1.1.1",
     "kaggle>=2.2.1",
-    "kagglehub>=1.0.1",
+    "kagglehub>=1.0.2",
     "lightgbm>=4.6.0",
     "matplotlib>=3.10.9",
     "numpy>=2.4.6",
@@ -21,3 +29,7 @@ dependencies = [
     "uvicorn[standard]>=0.49.0",
     "xgboost>=3.2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/pypi-ahmad/payment-fraud-risk-scoring"
+Issues = "https://github.com/pypi-ahmad/payment-fraud-risk-scoring/issues"

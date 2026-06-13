@@ -1,153 +1,257 @@
 # Payment Fraud Risk Scoring
 
-End-to-end applied-ML project that scores card transactions by fraud risk on a
-severely imbalanced dataset (~0.17% fraud). The deliverable is a single,
-well-explained notebook plus a small reusable scoring layer.
+[![Python](https://img.shields.io/badge/python-3.12.10-blue.svg)](https://www.python.org/downloads/release/python-31210/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
-## Problem
+Production-oriented fraud risk scoring project on an extremely imbalanced card-transaction dataset (~0.17% fraud). The system supports both notebook and script-driven training and exposes reusable inference surfaces via:
 
-Card fraud is rare but expensive. The job of a fraud model is to **rank
-transactions by risk** so a review team (or an auto-block rule) handles the
-riskiest first. The hard part is the imbalance: only ~1 in 600 transactions is
-fraud, so plain **accuracy is meaningless** — a model that flags nothing is
-already 99.8% "accurate". We therefore optimise and report:
+- a serializable `FraudScorer` bundle,
+- a batch CSV scoring CLI,
+- an optional FastAPI service.
+- a scriptable training CLI (`train_model.py`) for non-notebook workflows.
 
-- **PR-AUC** (average precision) — primary model-selection metric; unlike
-  ROC-AUC it isn't inflated by the huge true-negative count.
-- **Recall** — share of actual fraud caught (the costly miss).
-- **Precision** — share of flags that are truly fraud (analyst-effort cost).
-- **F1 / F2**, **confusion matrix**, and **Precision@K / Recall@K** for a
-  review-queue view.
+## Why This Project
 
-Because precision and recall trade off, the decision **threshold is tuned
-explicitly** (on validation) rather than left at 0.5.
+In card fraud, class imbalance makes plain accuracy misleading. This project optimizes and reports fraud-relevant metrics:
+
+- **PR-AUC** for model selection under heavy imbalance,
+- **Recall** to minimize expensive missed fraud,
+- **Precision/F1** to control analyst review load,
+- **Top-K review metrics** (`precision@k`, `recall@k`) for queue operations.
+
+Thresholding is explicit and tuned on validation; it is not fixed at `0.5`.
 
 ## Dataset
 
-[Credit Card Fraud Detection](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud)
-(ULB Machine Learning Group), Kaggle slug `mlg-ulb/creditcardfraud`.
+- Source: [Kaggle - Credit Card Fraud Detection](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud)
+- Kaggle slug: `mlg-ulb/creditcardfraud`
+- Period: two days of European card activity (September 2013)
+- Raw class mix: 492 frauds out of 284,807 transactions (0.173%)
+- This project drops fully duplicated rows before splitting.
 
-- 284,807 real European card transactions over two days in Sept 2013.
-- 492 fraud (0.173%) in the raw file; **1,081 duplicate rows are dropped**,
-  leaving 283,726 transactions / 473 fraud (0.167%).
-- Features `V1`–`V28` are PCA components (anonymised by the publishers); `Time`
-  and `Amount` are original; `Class` is the label (1 = fraud).
+## Repository Layout
 
-> Because the features are PCA outputs from one 2-day 2013 window, absolute
-> scores won't transfer to another portfolio — the **methodology** is the
-> transferable part. No business cost/savings figures are claimed.
+```text
+payment-fraud-risk-scoring/
+├── fraud_risk_scoring.ipynb     # main training/evaluation notebook
+├── train_model.py               # scriptable training entrypoint
+├── src/
+│   ├── data.py                  # data acquisition/loading/splitting
+│   └── scoring.py               # metrics, thresholding, inference bundle
+├── app.py                       # optional FastAPI scoring service
+├── batch_score.py               # batch CSV scoring CLI
+├── tests/                       # unit/integration-style tests
+├── reports/                     # generated scored outputs
+├── pyproject.toml
+├── uv.lock
+└── README.md
+```
 
-## Setup
+## Quickstart
+
+### 1. Clone and enter
 
 ```bash
 git clone https://github.com/pypi-ahmad/payment-fraud-risk-scoring.git
 cd payment-fraud-risk-scoring
 ```
 
-
-Requires [`uv`](https://docs.astral.sh/uv/) and Python 3.12.10 (uv installs the
-interpreter automatically). From the project root:
+### 2. Create environment (Python 3.12.10 via `uv`)
 
 ```bash
-# Create the venv and install everything pinned in pyproject.toml / uv.lock
+uv venv --python 3.12.10 .venv
+source .venv/bin/activate
 uv sync
 ```
 
-### Kaggle credentials (for the dataset download)
+### 3. Configure Kaggle access (first download only)
 
-`data/raw/creditcard.csv` is fetched automatically via `kagglehub` on first run.
-That needs Kaggle credentials in **one** of these forms:
+The project attempts dataset download via `kagglehub` if `data/raw/creditcard.csv` is missing.
 
 ```bash
-# Option A — API token env var (used by this project):
+# Option A: Kaggle API token env var (project-documented path)
 export KAGGLE_API_TOKEN=KGAT_xxxxxxxxxxxxxxxxxxxxxxxx
 
-# Option B — classic credentials file:
+# Option B: ~/.kaggle/kaggle.json
 mkdir -p ~/.kaggle
 echo '{"username":"<user>","key":"<key>"}' > ~/.kaggle/kaggle.json
 chmod 600 ~/.kaggle/kaggle.json
 ```
 
-If the file already exists at `data/raw/creditcard.csv`, no download or
-credentials are needed — the project runs fully offline.
+If `data/raw/creditcard.csv` already exists, all runs are offline.
 
-## How to run
+## Running
 
-### Notebook (main deliverable)
+### Scripted training (recommended for CI/automation)
+
+```bash
+uv run python train_model.py \
+  --output-model models/fraud_scorer.joblib \
+  --metrics-out reports/training_metrics.json
+```
+
+This writes:
+
+- `models/fraud_scorer.joblib`
+- `models/fraud_scorer.joblib.sha256`
+- `reports/training_metrics.json`
+
+### Notebook training/evaluation
 
 ```bash
 uv run jupyter lab fraud_risk_scoring.ipynb
-# select the "Python 3 (payment-fraud)" kernel
 ```
 
-Or run it headless end-to-end:
+Headless execution:
 
 ```bash
 uv run jupyter nbconvert --to notebook --execute --inplace fraud_risk_scoring.ipynb
 ```
 
-Running the notebook trains the models and saves the chosen one to
-`models/fraud_scorer.joblib`.
+Notebook execution writes `models/fraud_scorer.joblib` and `models/fraud_scorer.joblib.sha256`.
 
 ### Batch scoring (CLI)
 
 ```bash
-uv run python batch_score.py --input data/raw/creditcard.csv --output reports/scored.csv
+uv run python batch_score.py \
+  --input data/raw/creditcard.csv \
+  --output reports/scored.csv
 ```
 
-### Optional API (FastAPI)
+For large CSVs:
+
+```bash
+uv run python batch_score.py \
+  --input data/raw/creditcard.csv \
+  --output reports/scored.csv \
+  --chunksize 50000
+```
+
+### API scoring (FastAPI)
 
 ```bash
 uv run uvicorn app:app --reload
-# interactive docs at http://127.0.0.1:8000/docs ; POST a transaction to /score
 ```
 
-## Key findings
+OpenAPI docs: `http://127.0.0.1:8000/docs`
 
-From a single reproducible run (`random_state=42`; stratified 60/20/20 split;
-test set held out until the end):
+Optional API key protection:
 
-| Model | Val PR-AUC | Val ROC-AUC |
-|---|---|---|
-| **XGBoost** (selected) | **0.885** | 0.978 |
-| LightGBM | 0.884 | 0.979 |
-| Random Forest | 0.871 | 0.963 |
-| Logistic Regression (baseline) | 0.788 | 0.979 |
-
-- **PR-AUC separates the models** even though ROC-AUC looks uniformly high —
-  exactly why ROC-AUC alone is misleading under heavy imbalance. Logistic
-  Regression has a strong ROC-AUC (0.979) yet collapses on PR-AUC and precision.
-- **SMOTE was tested and rejected:** SMOTE+XGBoost gave 0.884 validation PR-AUC
-  vs 0.885 for the class-weighted model, so the simpler model was kept.
-- **Selected model:** XGBoost with `scale_pos_weight ≈ 598`, operating threshold
-  **0.126** (F2-tuned on validation, favouring recall).
-- **Held-out test performance:** PR-AUC **0.823**, Recall **0.800**, Precision
-  **0.884**, F1 **0.840** — confusion matrix TP=76, FP=10, FN=19, TN=56,641.
-- **Review-queue (Precision@K) on test:** reviewing the top 100 riskiest
-  transactions yields Precision@100 ≈ 0.77 and Recall@100 ≈ 0.81 — i.e. a
-  100-item queue catches ~81% of all fraud.
-
-> Numbers are regenerated every run; the notebook is the source of truth.
-
-## Project layout
-
-```
-payment-fraud-risk-scoring/
-├── fraud_risk_scoring.ipynb   # main deliverable (executed, with outputs)
-├── src/
-│   ├── data.py                # Kaggle download, loading, stratified splits
-│   └── scoring.py             # metrics, threshold tuning, top-K, FraudScorer
-├── batch_score.py             # CLI batch scoring from the saved model
-├── app.py                     # optional lightweight FastAPI scorer
-├── data/raw/creditcard.csv    # dataset (downloaded; git-ignored)
-├── models/fraud_scorer.joblib # saved model bundle (created by the notebook)
-├── reports/                   # scored outputs
-├── pyproject.toml / uv.lock   # uv-managed environment
-└── .python-version            # 3.12.10
+```bash
+export FRAUD_API_KEY="replace-with-strong-secret"
 ```
 
-## Notes on compute
+When configured, send `X-API-Key` for `POST /score` and `POST /admin/reload-model`.
 
-Everything trains in seconds on CPU (`tree_method="hist"`), so **no GPU is
-required** for this dataset. XGBoost/LightGBM can use CUDA on larger data, but it
-isn't needed here and isn't forced.
+Optional per-client rate limit (default: 120 requests/min):
+
+```bash
+export FRAUD_RATE_LIMIT_PER_MIN=120
+```
+
+Model integrity policy (default requires hash sidecar):
+
+```bash
+export FRAUD_REQUIRE_MODEL_HASH=true
+```
+
+## API Contract
+
+### `GET /health`
+
+Returns service/model readiness.
+
+Example response:
+
+```json
+{
+  "status": "ok",
+  "model_loaded": true,
+  "model_path": "/abs/path/models/fraud_scorer.joblib",
+  "rate_limit_per_min": 120
+}
+```
+
+### `POST /score`
+
+Request body must contain all model features:
+
+- `Time` (float)
+- `V1` ... `V28` (float)
+- `Amount` (float, `>= 0`)
+
+Unknown fields are rejected.
+Requests are rate-limited per client key (IP / `x-forwarded-for`) based on `FRAUD_RATE_LIMIT_PER_MIN`.
+
+Example response:
+
+```json
+{
+  "fraud_probability": 0.8421,
+  "risk_score": 842,
+  "risk_band": "High",
+  "is_flagged": 1,
+  "threshold": 0.126
+}
+```
+
+### `POST /admin/reload-model`
+
+Reloads the model artifact from disk (useful after retraining without process restart).
+
+## Model Card (Short)
+
+- **Intended use**: transaction risk ranking and analyst queue prioritization.
+- **Primary metric**: PR-AUC on validation.
+- **Operating policy**: explicit threshold tuning (e.g., F2-optimized threshold).
+- **Not intended for**: direct business-loss estimates, policy transfer across unseen portfolios without recalibration.
+- **Data limitations**: anonymized PCA feature space from a fixed 2013 2-day window.
+
+## Reproducibility Notes
+
+- Notebook sets deterministic seed (`random_state=42`) for data split/model training.
+- `train_model.py` uses the same deterministic seed and model-selection policy.
+- Train/validation/test splitting is stratified and performed before fitting.
+- Lockfile-managed dependencies are in `uv.lock`.
+
+## Testing
+
+Run the local test suite:
+
+```bash
+uv run python -m unittest discover -s tests -v
+```
+
+Current tests cover:
+
+- scoring/threshold edge cases,
+- model artifact hash verification,
+- API readiness/auth paths,
+- batch scoring behavior for normal and empty inputs,
+- scripted training pipeline artifact generation.
+
+## Security
+
+- Never commit Kaggle credentials or API keys.
+- Model loading supports SHA-256 integrity sidecars (`*.sha256`).
+- If deploying publicly, place API behind network controls, TLS, auth, and rate limiting.
+
+Report vulnerabilities using [SECURITY.md](./SECURITY.md).
+
+## Documentation and Governance
+
+- [CONTRIBUTING.md](./CONTRIBUTING.md)
+- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
+- [SECURITY.md](./SECURITY.md)
+- [CHANGELOG.md](./CHANGELOG.md)
+
+## License
+
+Licensed under the [MIT License](./LICENSE).
+
+## Troubleshooting
+
+- **`Model bundle not found`**: execute notebook first to produce `models/fraud_scorer.joblib`.
+- **`Failed to download dataset`**: verify Kaggle credentials/network, or place CSV at `data/raw/creditcard.csv`.
+- **`Model hash mismatch`**: artifact was modified after save; regenerate via notebook training.
+- **`/score` returns `503`**: model not loaded; check `/health` and run `/admin/reload-model` after fixing artifact path.

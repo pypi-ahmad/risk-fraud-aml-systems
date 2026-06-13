@@ -43,4 +43,6 @@ coverage.xml
 # Data, models, and generated reports (large / reproducible)
 data/raw/*.csv
 models/*.joblib
+models/*.sha256
 reports/*.csv
+reports/*.json
