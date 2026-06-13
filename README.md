@@ -1,37 +1,62 @@
-# Risk Fraud Aml Systems
+# risk-fraud-aml-systems
+
+## Overview
 
 Risk, fraud, and AML intelligence projects with applied ML pipelines.
 
-## Repository Purpose
+## Tech Stack
 
-This repository groups related projects into a single, navigable codebase with consistent structure and indexing.
+- Multi-project repository
 
-## Project Index
+## Repository Structure
 
-| # | Project | Folder | Source Directory | Source Repository | Source Commit |
-|---|---|---|---|---|---|
-| 1 | `agentic-aml-investigator` | `agentic-aml-investigator` | `agentic-aml-investigator` | https://github.com/pypi-ahmad/agentic-aml-investigator.git | `72545acff8` |
-| 2 | `credit-risk-decisioning-system` | `credit-risk-decisioning-system` | `credit-risk-decisioning-system` | https://github.com/pypi-ahmad/credit-risk-decisioning-system.git | `5949f2eb7a` |
-| 3 | `multimodal-pytorch-risk-fusion` | `multimodal-pytorch-risk-fusion` | `multimodal-pytorch-risk-fusion` | https://github.com/pypi-ahmad/multimodal-pytorch-risk-fusion.git | `6e59e750e7` |
-| 4 | `payment-fraud-risk-scoring` | `payment-fraud-risk-scoring` | `payment-fraud-risk-scoring` | https://github.com/pypi-ahmad/payment-fraud-risk-scoring.git | `11d7018b55` |
-| 5 | `pytorch-fraud-mlp` | `pytorch-fraud-mlp` | `pytorch-fraud-mlp` | https://github.com/pypi-ahmad/pytorch-fraud-mlp.git | `983d5866c3` |
-| 6 | `temporal-graph-aml-intelligence` | `temporal-graph-aml-intelligence` | `temporal-graph-aml-intelligence` | https://github.com/pypi-ahmad/temporal-graph-aml-intelligence.git | `3745862783` |
-| 7 | `transaction-anomaly-detection` | `transaction-anomaly-detection` | `transaction-anomaly-detection` | https://github.com/pypi-ahmad/transaction-anomaly-detection.git | `6dae96f444` |
-
-## Layout
-
-- Each top-level folder is a standalone project migrated from the source workspace.
-- Heavy local-only artifacts (virtual environments, datasets, model weights, caches) are intentionally excluded.
+- `agentic-aml-investigator/`
+- `CHANGELOG.md`
+- `CODE_OF_CONDUCT.md`
+- `CONTRIBUTING.md`
+- `credit-risk-decisioning-system/`
+- `LICENSE`
+- `multimodal-pytorch-risk-fusion/`
+- `payment-fraud-risk-scoring/`
+- `pytorch-fraud-mlp/`
+- `README.md`
+- `SECURITY.md`
+- `temporal-graph-aml-intelligence/`
+- ... and 1 more entries
 
 ## Getting Started
 
+### Prerequisites
+
+- Git
+- Runtime dependencies for this project's stack
+
+### Installation
+
 ```bash
-git clone <this-repo-url>
-cd <this-repo-folder>
-cd <project-folder>
+Review project-specific setup files in the repository root.
 ```
 
-## Maintenance Notes
+## Usage
 
-- Keep project-level documentation inside each project folder.
-- Use this repository as a curated portfolio layer across related workstreams.
+Use the project's documented entrypoint (CLI/app script) from this repository.
+
+## Testing
+
+Add tests under `tests/` and run the repository's configured test command.
+
+## Security
+
+Please review [SECURITY.md](SECURITY.md) for reporting and handling security issues.
+
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before opening issues or pull requests.
+
+## Changelog
+
+Ongoing changes are tracked in [CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+This project is licensed under the terms described in [LICENSE](LICENSE).
